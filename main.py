@@ -6,15 +6,9 @@ import tkinter as tk
 from tkinter import messagebox
 
 # ================= 配置区域 =================
-TEMPLATE_FILE = "抛单-段腾飞.xlsx"
+TEMPLATE_FILE = "抛单.xlsx"
 SUPPLIER_MAPPING = {
-    "台州乔克科技有限公司": "乔克",
-    "顾家家居股份有限公司": "顾家",
-    "浙江众望布艺股份有限公司": "众望",
-    "众望布艺股份有限公司": "众望",
-    "浙江玛雅布业有限公司": "玛雅",
-    "嘉兴泰恩弹簧有限公司": "泰恩",
-    "磨根国际贸易(上海)有限公司": "磨根"
+    "台州xx科技有限公司": "xx"
 }
 
 
@@ -241,4 +235,5 @@ class App:
 if __name__ == "__main__":
     root = tk.Tk()
     app = App(root)
+
     root.mainloop()
