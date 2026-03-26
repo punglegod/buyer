@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 # ================= 配置区域 =================
-TEMPLATE_FILE = "抛单-段腾飞.xlsx"
+TEMPLATE_FILE = "抛单-d.xlsx"
 SUPPLIER_MAPPING = {
     "台州乔克科技有限公司": "乔克",
     "顾家家居股份有限公司": "顾家",
@@ -164,7 +164,7 @@ def process_order(input_text, log_func):
             log_func(f"   ✅ 写入成功: {item['mat_code']} ({item['qty']}{item['unit']})")
 
         sup_short = get_supplier_short(supplier)
-        new_filename = f"{order_data['order_id']}-{sup_short}-段腾飞.xlsx"
+        new_filename = f"{order_data['order_id']}-{sup_short}-d.xlsx"
         try:
             wb.save(new_filename)
             log_func(f"🎉 文件已生成: {new_filename}")
