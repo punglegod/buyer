@@ -1,0 +1,16 @@
+# Generated Excel files
+CPKFWL*.xlsx
+
+# Build output
+build/
+dist/
+*.spec
+
+# IDE
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
