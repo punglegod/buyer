@@ -26,12 +26,26 @@ def get_supplier_short(full_name):
         return SUPPLIER_MAPPING[full_name]
     short = re.sub(r'[（\(].*?[）\)]', '', full_name)
     
-    # 移除常见的省份、城市等地名
-    places = r'(广州|淄博|北京|上海|天津|重庆|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|海南|四川|贵州|云南|陕西|甘肃|青海|台湾|内蒙古|广西|西藏|宁夏|新疆|香港|澳门|广州|深圳|杭州|宁波|温州|嘉兴|湖州|绍兴|金华|衢州|舟山|台州|丽水|成都|东莞|佛山)'
+    # 移除常见的省份、城市等地名（自动生成带"市"的变体，长词优先匹配）
+    _base_places = [
+        '北京', '上海', '天津', '重庆',
+        '河北', '山西', '辽宁', '吉林', '黑龙江', '江苏', '浙江', '安徽',
+        '福建', '江西', '山东', '河南', '湖北', '湖南', '广东', '海南',
+        '四川', '贵州', '云南', '陕西', '甘肃', '青海', '台湾',
+        '内蒙古', '广西', '西藏', '宁夏', '新疆', '香港', '澳门',
+        '广州', '深圳', '杭州', '宁波', '温州', '嘉兴', '湖州', '绍兴',
+        '金华', '衢州', '舟山', '台州', '丽水', '成都', '东莞', '佛山',
+        '淄博', '德州', '天长',
+    ]
+    _all = set(_base_places)
+    for p in _base_places:
+        if not p.endswith('市'):
+            _all.add(p + '市')
+    places = '(' + '|'.join(sorted(_all, key=len, reverse=True)) + ')'
     short = re.sub(places, '', short)
     
     # 移除常见的公司后缀和行业词
-    short = re.sub(r'(纺织|家居|用品|金属|五金|智能|布艺|有限责任公司|有限公司|国际|实业|股份|科技|工业|贸易|中心|集团|布业|塑胶|家居|家具|包装|材料|电器|设备|LIMITED|LTD|CO\.|INC\.)',
+    short = re.sub(r'(机械|纺织|纺织品|家居|用品|金属|五金|智能|布艺|有限责任公司|有限公司|国际|实业|股份|科技|工业|贸易|中心|集团|布业|塑胶|家居|家具|包装|材料|电器|设备|LIMITED|LTD|CO\.|INC\.)',
                    '', short, flags=re.IGNORECASE)
     return short.strip()[:4]
 
@@ -137,6 +151,10 @@ def process_order(input_text, log_func):
         elif "功能" in dept_val and r_zhao:
             ws.cell(row=r_zhao, column=10).value = ""
 
+        # 计算物料描述列(C列)的宽度，用于估算行高
+        # openpyxl 的 column width 单位约等于"默认字体下一个字符的宽度"
+        col_c_width = ws.column_dimensions['C'].width or 20
+
         for i, item in enumerate(order_data['items']):
             current_row = 5 + i
             ws.cell(row=current_row, column=1).value = order_data['order_id']
@@ -149,8 +167,6 @@ def process_order(input_text, log_func):
             ws.cell(row=current_row, column=8).value = supplier
 
             if current_row > 5:
-                if ws.row_dimensions[5].height is not None:
-                    ws.row_dimensions[current_row].height = ws.row_dimensions[5].height
                 for col in range(1, 9):
                     source_cell = ws.cell(row=5, column=col)
                     target_cell = ws.cell(row=current_row, column=col)
@@ -162,6 +178,29 @@ def process_order(input_text, log_func):
                         target_cell.alignment = copy(source_cell.alignment)
 
             log_func(f"   ✅ 写入成功: {item['mat_code']} ({item['qty']}{item['unit']})")
+
+        # 根据最长的物料描述计算统一行高，确保所有行一致
+        # 中文/全角字符占2个字符宽度，Latin字符占1个
+        def _display_width(text):
+            w = 0
+            for ch in text:
+                if '\u4e00' <= ch <= '\u9fff' or '\u3000' <= ch <= '\u303f' or '\uff00' <= ch <= '\uffef':
+                    w += 2
+                else:
+                    w += 1
+            return w
+
+        base_height = ws.row_dimensions[5].height or 15
+        max_lines = 1
+        for item in order_data['items']:
+            desc = item['mat_desc'] or ''
+            text_width = _display_width(desc)
+            lines_needed = max(1, -(-text_width // int(col_c_width)))  # 向上取整
+            if lines_needed > max_lines:
+                max_lines = lines_needed
+        uniform_height = max(base_height, base_height * max_lines * 1.2)  # 1.2倍余量
+        for i in range(len(order_data['items'])):
+            ws.row_dimensions[5 + i].height = uniform_height
 
         sup_short = get_supplier_short(supplier)
         new_filename = f"{order_data['order_id']}-{sup_short}-d.xlsx"
@@ -184,6 +223,15 @@ class App:
         self.root.geometry("860x720")
         self.root.minsize(750, 650)
         self.root.configure(bg="#D2D0D6")
+
+        # 设置窗口图标
+        try:
+            import sys
+            base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+            icon_path = os.path.join(base, 'icon.ico')
+            self.root.iconbitmap(icon_path)
+        except Exception:
+            pass
 
         # iOS 26 Liquid Glass 色系
         self.font_h1 = ("Microsoft YaHei", 22, "bold")
@@ -280,8 +328,11 @@ class App:
         tk.Label(header, text="采购订单助手", font=self.font_h1,
                  bg=self.color_glass, fg=self.color_text_dark).pack(anchor=tk.W, pady=(2, 0))
 
-        tk.Label(header, text="智能拆单  ·  一键生成  ·  高效办公", font=self.font_h2,
-                 bg=self.color_glass, fg=self.color_text_sub).pack(anchor=tk.W, pady=(3, 0))
+        link_text = "开源地址：https://github.com/punglegod/buyer"
+        link_label = tk.Label(header, text=link_text, font=self.font_h2,
+                              bg=self.color_glass, fg=self.color_accent, cursor="hand2")
+        link_label.pack(anchor=tk.W, pady=(3, 0))
+        link_label.bind("<Button-1>", lambda e: __import__('webbrowser').open("https://github.com/punglegod/buyer"))
 
         # 分割线
         sep = tk.Frame(self.card, bg=self.color_border, height=1)
@@ -379,8 +430,16 @@ class App:
     def run_process(self):
         content = self.text_input.get(1.0, tk.END).strip()
         if not content:
-            messagebox.showwarning("提示", "您还没有粘贴任何订单内容哦！")
-            return
+            # 输入框为空时，自动读取剪贴板
+            try:
+                content = self.root.clipboard_get().strip()
+            except tk.TclError:
+                content = ""
+            if not content:
+                messagebox.showwarning("提示", "输入框和剪贴板都没有订单内容哦！")
+                return
+            self.text_input.insert(1.0, content)
+            self.log("📋 已自动从剪贴板读取订单数据。")
 
         self.text_log.config(state=tk.NORMAL)
         self.text_log.delete(1.0, tk.END)

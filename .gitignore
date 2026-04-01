@@ -1,6 +1,9 @@
 # Generated Excel files
 CPKFWL*.xlsx
 
+# Template (contains personal info)
+抛单-*.xlsx
+
 # Build output
 build/
 dist/
